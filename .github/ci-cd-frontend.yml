@@ -1,0 +1,68 @@
+name: CI/CD for Medease Invoice Generator # Updated name to reflect CI and CD
+
+on:
+  push:
+    branches: [main] # Triggers CI and, if successful, CD
+  pull_request:
+    branches: [main] # Triggers CI only
+
+jobs:
+  build-test-and-deploy: # Renamed job for clarity
+    runs-on: ubuntu-latest
+    # Optional: Define a GitHub Environment for more control (e.g., for production deployments)
+    # See GitHub docs for setting up Environments if you want this.
+    # environment:
+    #   name: production # Example environment name
+    #   url: ${{ steps.deploy-to-vercel.outputs.url }} # Will show the Vercel deployment URL in GitHub UI
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm' # Your project uses npm
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps # Your install command
+
+      - name: Run lint
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build project
+        run: npm run build
+        # If you have build-time environment variables for Vercel,
+        # it's best to set them in the Vercel project UI.
+        # However, if they are needed for THIS build step and are GitHub secrets:
+        # env:
+        #   NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL_FOR_BUILD }}
+
+      - name: Deploy to Vercel Production
+        # This step only runs on a push to the 'main' branch,
+        # AND only if all previous steps in this job were successful.
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        id: deploy-to-vercel # Give the step an ID to reference its outputs (like deployment URL)
+        uses: amondnet/vercel-action@v20 # A popular Vercel deployment action
+        # You can also explore the official vercel/vercel-action
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }} # REQUIRED GitHub Secret
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}   # REQUIRED GitHub Secret
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }} # REQUIRED GitHub Secret
+          # The 'vercel-args' flag tells Vercel CLI to create a production deployment.
+          # For pushes to 'main', this is usually what you want.
+          # Vercel often infers this from the branch name if your project is configured.
+          vercel-args: '--prod'
+          # Optional: If your Next.js app is not in the root of the repository:
+          # working-directory: ./path-to-your-app
+
+      # (Optional DevSecOps step) Example: Post-deployment smoke test
+      # - name: Smoke Test Deployed Application
+      #   if: success() && steps.deploy-to-vercel.outputs.url # Only if deployment was successful and we have a URL
+      #   run: |
+      #     echo "Attempting to smoke test URL: ${{ steps.deploy-to-vercel.outputs.url }}"
+      #     curl -sfL ${{ steps.deploy-to-vercel.outputs.url }} > /dev/null && echo "Smoke test passed!" || (echo "Smoke test FAILED" && exit 1)
