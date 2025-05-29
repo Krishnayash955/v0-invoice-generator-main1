@@ -1,20 +1,20 @@
-name: CI/CD for Medease Invoice Generator # Updated name for clarity
+name: CI/CD for Medease Invoice Generator # Single 'name' for the workflow
 
-on:
+on: # Single 'on' block defining triggers
   push:
     branches: [main] # CI and CD trigger
   pull_request:
     branches: [main] # CI only trigger
 
-jobs:
-  build-test-and-deploy: # Combined job name
+jobs: # Single 'jobs' block
+  build-test-and-deploy: # Your combined job
     runs-on: ubuntu-latest
     # Optional: Define a GitHub Environment for more control (e.g., production)
     # environment:
     #   name: production
     #   url: ${{ steps.deploy-to-vercel.outputs.url }} # This will show the deployment URL
 
-    steps:
+    steps: # Steps for the 'build-test-and-deploy' job
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -65,3 +65,22 @@ jobs:
       #   run: |
       #     curl -sf ${{ steps.deploy-to-vercel.outputs.url }} > /dev/null && echo "Smoke test passed!" || (echo "Smoke test FAILED" && exit 1)
       #     # Add more sophisticated smoke tests if needed
+
+# THE FOLLOWING DUPLICATED STEPS FROM THE ORIGINAL "CI for Medease" HAVE BEEN REMOVED:
+#      - name: Setup Node.js 18
+#        uses: actions/setup-node@v4
+#        with:
+#          node-version: '18'
+#          cache: 'npm'
+
+#      - name: Install dependencies
+#        run: npm install --legacy-peer-deps
+
+#      - name: Run lint
+#        run: npm run lint
+
+#      - name: Run tests
+#        run: npm test
+
+#      - name: Build project
+#        run: npm run build
