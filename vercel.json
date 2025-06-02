@@ -9,9 +9,5 @@
       "source": "/api/:path*",
       "destination": "/api/:path*"
     }
-  ],
-  "env": {
-    "MONGODB_URI": "@mongodb_uri",
-    "NEXT_PUBLIC_API_URL": "@next_public_api_url"
-  }
+  ]
 }
