@@ -15,7 +15,7 @@ export type InvoiceData = {
   invoiceNumber: string
   invoiceDate: string
   dueDate: string
-  notes: string
   lineItems: LineItem[]
   totalAmount?: number
+  status?: string
 }

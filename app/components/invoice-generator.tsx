@@ -71,7 +71,6 @@ export default function InvoiceGenerator() {
       ).padStart(2, "0")}-001`,
       invoiceDate: new Date().toISOString().split("T")[0],
       dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-      notes: "",
     },
     mode: "onChange",
   })
@@ -199,7 +198,6 @@ export default function InvoiceGenerator() {
       color: accentColors.tertiary,
     },
     { id: "items", label: "Line Items", icon: <ListChecks className="h-5 w-5" />, color: accentColors.quaternary },
-    { id: "notes", label: "Additional Notes", icon: <Info className="h-5 w-5" />, color: accentColors.quinary },
   ]
 
   const togglePreviewMode = () => {
@@ -287,7 +285,7 @@ export default function InvoiceGenerator() {
                     <div className="flex justify-between items-center">
                       <span className="text-gray-400">Due Date:</span>
                       <Badge variant="outline" className="font-medium text-white border-gray-700">
-                        {formValues.dueDate ? new Date(formValues.dueDate).toLocaleDateString() : "Not set"}
+                        {formValues.dueDate ? formValues.dueDate.replace(/(\d{4})-(\d{2})-(\d{2})/, "$2/$3/$1") : "Not set"}
                       </Badge>
                     </div>
                     <Separator className="my-3 bg-gray-800" />
@@ -774,32 +772,7 @@ export default function InvoiceGenerator() {
                   </CardContent>
                 </Card>
 
-                {/* Notes */}
-                <Card
-                  id="notes"
-                  className={cn(
-                    "overflow-hidden border-0 shadow-md transition-all duration-300 bg-gray-900",
-                    activeSection === "notes" ? "ring-2 ring-teal-500" : "",
-                  )}
-                >
-                  <div className="bg-teal-500 px-6 py-4 flex items-center gap-2">
-                    <Info className="h-5 w-5 text-white" />
-                    <h2 className="text-lg font-semibold text-white">Additional Notes</h2>
-                  </div>
-                  <CardContent className="p-6">
-                    <div className="space-y-2">
-                      <Label htmlFor="notes" className="text-gray-300">
-                        Notes
-                      </Label>
-                      <Textarea
-                        id="notes"
-                        {...register("notes")}
-                        placeholder="Payment terms, thank you message, etc."
-                        className="min-h-[120px] bg-gray-800 border-gray-700 text-white transition-all duration-200 focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:border-transparent"
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
+
               </motion.div>
             </form>
           </div>

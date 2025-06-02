@@ -101,15 +101,7 @@ export default function InvoicePreview({ formData }: { formData: InvoiceData }) 
         </div>
       </div>
 
-      {/* Notes */}
-      {formData.notes && (
-        <div className="mt-8 pt-4 border-t border-gray-700">
-          <div className="text-sm font-medium text-gray-400 mb-2">NOTES:</div>
-          <div className="text-sm text-gray-300 whitespace-pre-line p-4 bg-gray-800 rounded-lg border border-gray-700">
-            {formData.notes}
-          </div>
-        </div>
-      )}
+
 
       {/* Footer */}
       <div className="mt-10 pt-6 border-t border-gray-700 text-center text-sm text-gray-400">

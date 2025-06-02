@@ -27,7 +27,6 @@ const invoiceFormSchema = z.object({
   clientName: z.string().min(1, "Client name is required"),
   clientAddress: z.string().min(1, "Client address is required"),
   clientEmail: z.string().email("Invalid client email"),
-  notes: z.string().optional(),
   totalAmount: z.number().positive("Total amount must be positive"),
   lineItems: z.array(lineItemSchemaInternal).min(1, "At least one line item is required"),
   status: z.string().optional().default('draft'),
@@ -105,12 +104,22 @@ export async function generateInvoice(data: InvoiceData): Promise<Blob> {
   const headerFontSize = 12;
   const normalFontSize = 10;
 
+  // Draw header background
+  page.drawRectangle({
+    x: 0,
+    y: height - 80,
+    width: width,
+    height: 80,
+    color: rgb(0.2, 0.2, 0.2),
+  });
+  
+  // Draw invoice title
   page.drawText("INVOICE", {
     x: 50,
     y: height - 50,
     size: titleFontSize,
     font: helveticaBold,
-    color: rgb(0.2, 0.2, 0.2),
+    color: rgb(1, 1, 1), // White text
   });
 
   page.drawText(data.companyName, {
@@ -172,6 +181,38 @@ export async function generateInvoice(data: InvoiceData): Promise<Blob> {
     font: helveticaFont,
     color: rgb(0, 0, 0),
   });
+  
+  // Add status with background
+  const status = data.status?.toUpperCase() || 'UNPAID';
+  const statusColor = status === 'PAID' ? rgb(0.2, 0.7, 0.2) : rgb(0.8, 0.2, 0.2); // Green for paid, red for unpaid
+  
+  page.drawText(`Status:`, {
+    x: width - 200,
+    y: height - 135,
+    size: normalFontSize,
+    font: helveticaFont,
+    color: rgb(0, 0, 0),
+  });
+  
+  // Status background
+  page.drawRectangle({
+    x: width - 150,
+    y: height - 145,
+    width: 70,
+    height: 18,
+    color: statusColor,
+    borderColor: rgb(0.8, 0.8, 0.8),
+    borderWidth: 1,
+  });
+  
+  // Status text
+  page.drawText(status, {
+    x: width - 145,
+    y: height - 135,
+    size: normalFontSize,
+    font: helveticaBold,
+    color: rgb(1, 1, 1), // White text
+  });
 
   page.drawLine({
     start: { x: 50, y: height - 150 },
@@ -220,51 +261,51 @@ export async function generateInvoice(data: InvoiceData): Promise<Blob> {
   const tableRight = width - 50;
   const columnWidths = [280, 70, 80, 90]; // Adjusted for potentially wider content
 
+  // Draw table header with a darker background
   page.drawRectangle({
     x: tableLeft,
     y: tableTop - 25,
     width: tableRight - tableLeft,
     height: 25,
-    color: rgb(0.9, 0.9, 0.9),
-    borderColor: rgb(0.8, 0.8, 0.8),
+    color: rgb(0.2, 0.2, 0.2), // Darker background
+    borderColor: rgb(0.1, 0.1, 0.1),
     borderWidth: 1,
   });
 
+  // Table headers with white text
   page.drawText("Description", {
     x: tableLeft + 10,
     y: tableTop - 15,
     size: headerFontSize,
     font: helveticaBold,
-    color: rgb(0.2, 0.2, 0.2),
+    color: rgb(1, 1, 1), // White text
   });
   page.drawText("Quantity", {
     x: tableLeft + columnWidths[0] + 10,
     y: tableTop - 15,
     size: headerFontSize,
     font: helveticaBold,
-    color: rgb(0.2, 0.2, 0.2),
+    color: rgb(1, 1, 1), // White text
   });
   page.drawText("Unit Price", {
     x: tableLeft + columnWidths[0] + columnWidths[1] + 10,
     y: tableTop - 15,
     size: headerFontSize,
     font: helveticaBold,
-    color: rgb(0.2, 0.2, 0.2),
+    color: rgb(1, 1, 1), // White text
   });
   page.drawText("Amount", {
     x: tableLeft + columnWidths[0] + columnWidths[1] + columnWidths[2] + 10,
     y: tableTop - 15,
     size: headerFontSize,
     font: helveticaBold,
-    color: rgb(0.2, 0.2, 0.2),
+    color: rgb(1, 1, 1), // White text
   });
 
   let yPosition = tableTop - 45; // Start items lower
-  // let currentTotal = 0; // Calculate from line items for PDF accuracy
 
   data.lineItems.forEach((item, index) => {
     const amount = item.quantity * item.unitPrice;
-    // currentTotal += amount;
 
     if (index % 2 === 0) {
       page.drawRectangle({
@@ -307,61 +348,186 @@ export async function generateInvoice(data: InvoiceData): Promise<Blob> {
     yPosition -= 25;
   });
 
-  yPosition -= 5; // Space before total line
+  yPosition -= 5; // Space before totals section
 
+  // Calculate tax and total
+  const subtotal = data.totalAmount ?? 0;
+  const taxRate = 0.05; // 5% tax
+  const taxAmount = subtotal * taxRate;
+  const grandTotal = subtotal + taxAmount;
+
+  // Subtotal
+  page.drawText("Subtotal:", {
+    x: tableLeft + columnWidths[0] + columnWidths[1] + 10,
+    y: yPosition,
+    size: normalFontSize,
+    font: helveticaBold,
+    color: rgb(0.2, 0.2, 0.2),
+  });
+  
+  page.drawText(`$${subtotal.toFixed(2)}`, {
+    x: tableLeft + columnWidths[0] + columnWidths[1] + columnWidths[2] + 10,
+    y: yPosition,
+    size: normalFontSize,
+    font: helveticaFont,
+    color: rgb(0.2, 0.2, 0.2),
+  });
+  
+  yPosition -= 20;
+
+  // Tax (5%)
+  page.drawText("Tax (5%):", {
+    x: tableLeft + columnWidths[0] + columnWidths[1] + 10,
+    y: yPosition,
+    size: normalFontSize,
+    font: helveticaBold,
+    color: rgb(0.2, 0.2, 0.2),
+  });
+  
+  page.drawText(`$${taxAmount.toFixed(2)}`, {
+    x: tableLeft + columnWidths[0] + columnWidths[1] + columnWidths[2] + 10,
+    y: yPosition,
+    size: normalFontSize,
+    font: helveticaFont,
+    color: rgb(0.2, 0.2, 0.2),
+  });
+  
+  yPosition -= 20;
+
+  // Total with background
   page.drawRectangle({
     x: tableLeft + columnWidths[0] + columnWidths[1],
     y: yPosition - 15 + 2, // Adjust y
     width: tableRight - (tableLeft + columnWidths[0] + columnWidths[1]),
     height: 30,
-    color: rgb(0.95, 0.95, 0.95),
+    color: rgb(0.2, 0.2, 0.2), // Darker background for total
   });
 
-  page.drawText("Total:", {
+  page.drawText("TOTAL:", {
     x: tableLeft + columnWidths[0] + columnWidths[1] + 10,
     y: yPosition,
     size: headerFontSize,
     font: helveticaBold,
-    color: rgb(0, 0, 0),
+    color: rgb(1, 1, 1), // White text
   });
-  // Use data.totalAmount for the PDF as it's likely pre-calculated and validated
-  page.drawText(`$${(data.totalAmount ?? 0).toFixed(2)}`, {
+  
+  page.drawText(`$${grandTotal.toFixed(2)}`, {
     x: tableLeft + columnWidths[0] + columnWidths[1] + columnWidths[2] + 10,
+    y: yPosition,
+    size: headerFontSize,
+    font: helveticaBold,
+    color: rgb(1, 1, 1), // White text
+  });
+  
+  yPosition -= 30; // Space after total
+
+  // Add payment information section
+  yPosition -= 20;
+  page.drawText("PAYMENT INFORMATION", {
+    x: tableLeft,
     y: yPosition,
     size: headerFontSize,
     font: helveticaBold,
     color: rgb(0.2, 0.2, 0.2),
   });
-  yPosition -= 30; // Space after total
+  yPosition -= 20;
 
-  if (data.notes && data.notes.trim() !== "") {
-    yPosition -= 20;
-    page.drawText("NOTES:", {
-      x: tableLeft,
-      y: yPosition,
-      size: headerFontSize,
-      font: helveticaBold,
-      color: rgb(0.4, 0.4, 0.4),
-    });
-    yPosition -= 20;
+  page.drawText("Please make payment via bank transfer to:", {
+    x: tableLeft + 10,
+    y: yPosition,
+    size: normalFontSize,
+    font: helveticaFont,
+    color: rgb(0, 0, 0),
+  });
+  yPosition -= 20;
 
-    const notesLines = data.notes.split("\n");
-    notesLines.forEach((line) => {
-      page.drawText(line, {
-        x: tableLeft + 10,
-        y: yPosition,
-        size: normalFontSize,
-        font: helveticaFont,
-        color: rgb(0, 0, 0),
-      });
-      yPosition -= 15;
-    });
-  }
+  // Bank details
+  page.drawText("Bank Name:", {
+    x: tableLeft + 10,
+    y: yPosition,
+    size: normalFontSize,
+    font: helveticaBold,
+    color: rgb(0, 0, 0),
+  });
+  page.drawText("International Bank", {
+    x: tableLeft + 100,
+    y: yPosition,
+    size: normalFontSize,
+    font: helveticaFont,
+    color: rgb(0, 0, 0),
+  });
+  yPosition -= 15;
+
+  page.drawText("Account Name:", {
+    x: tableLeft + 10,
+    y: yPosition,
+    size: normalFontSize,
+    font: helveticaBold,
+    color: rgb(0, 0, 0),
+  });
+  page.drawText(data.companyName, {
+    x: tableLeft + 100,
+    y: yPosition,
+    size: normalFontSize,
+    font: helveticaFont,
+    color: rgb(0, 0, 0),
+  });
+  yPosition -= 15;
+
+  page.drawText("Account Number:", {
+    x: tableLeft + 10,
+    y: yPosition,
+    size: normalFontSize,
+    font: helveticaBold,
+    color: rgb(0, 0, 0),
+  });
+  page.drawText("1234567890", {
+    x: tableLeft + 100,
+    y: yPosition,
+    size: normalFontSize,
+    font: helveticaFont,
+    color: rgb(0, 0, 0),
+  });
+  yPosition -= 30;
+
+  // Footer
+  const footerY = 50;
+  
+  page.drawLine({
+    start: { x: 50, y: footerY + 30 },
+    end: { x: width - 50, y: footerY + 30 },
+    thickness: 1,
+    color: rgb(0.8, 0.8, 0.8),
+  });
 
   page.drawText("Thank you for your business!", {
     x: width / 2 - 80,
-    y: 50,
+    y: footerY + 15,
     size: normalFontSize,
+    font: helveticaBold,
+    color: rgb(0.4, 0.4, 0.4),
+  });
+  
+  // Add invoice generation date with consistent formatting
+  const date = new Date();
+  const monthNames = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+  const currentDate = `${monthNames[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+  page.drawText(`Invoice generated on ${currentDate}`, {
+    x: width / 2 - 100,
+    y: footerY,
+    size: 8, // Smaller font
+    font: helveticaFont,
+    color: rgb(0.4, 0.4, 0.4),
+  });
+  
+  // Add payment terms
+  page.drawText("Payment terms: Due within 30 days of issue", {
+    x: width / 2 - 120,
+    y: footerY - 15,
+    size: 8, // Smaller font
     font: helveticaFont,
     color: rgb(0.4, 0.4, 0.4),
   });
