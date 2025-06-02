@@ -118,6 +118,7 @@ export default function InvoiceGenerator() {
       const invoiceData = {
         ...data,
         lineItems,
+        totalAmount: calculateTotal(),
       }
 
       const pdfBlob = await generateInvoice(invoiceData)

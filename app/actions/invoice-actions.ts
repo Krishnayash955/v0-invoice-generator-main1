@@ -89,6 +89,11 @@ export async function saveInvoice(inputData: unknown) {
 
 // Assuming InvoiceData type is defined such that totalAmount is number (not optional for PDF)
 export async function generateInvoice(data: InvoiceData): Promise<Blob> {
+  // Calculate total amount if not provided
+  if (data.totalAmount === undefined) {
+    data.totalAmount = data.lineItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+  }
+  
   const pdfDoc = await PDFDocument.create();
   const page = pdfDoc.addPage([595.28, 841.89]);
   const { width, height } = page.getSize();

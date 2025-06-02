@@ -9,7 +9,7 @@ export default function InvoicePreview({ formData }: { formData: InvoiceData }) 
   }
 
   const subtotal = calculateSubtotal()
-  const total = subtotal
+  const total = formData.totalAmount !== undefined ? formData.totalAmount : subtotal
 
   return (
     <div className="p-8 bg-gray-900 text-white">

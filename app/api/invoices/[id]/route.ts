@@ -10,9 +10,22 @@ const connectToDatabase = async () => {
   }
 
   try {
-    await mongoose.connect(process.env.MONGODB_URI || '');
+    // Connect to MongoDB with auto-create options
+    await mongoose.connect(process.env.MONGODB_URI || '', {
+      autoCreate: true, // Automatically create the database if it doesn't exist
+      autoIndex: true   // Build indexes
+    });
+    
     isConnected = true;
     console.log('Connected to MongoDB');
+    
+    // Ensure the Invoice model is initialized which will create the collection if it doesn't exist
+    if (mongoose.models.Invoice) {
+      // Force a simple operation to ensure the collection exists
+      const count = await mongoose.models.Invoice.countDocuments({});
+      console.log(`Found ${count} existing invoices in the database`);
+    }
+    
   } catch (error) {
     console.error('MongoDB connection error:', error);
     throw new Error('Failed to connect to MongoDB');
