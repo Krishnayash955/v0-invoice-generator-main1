@@ -7,7 +7,7 @@ import axios from "axios";
 import { z } from "zod";
 
 // API base URL - will be used for all API calls
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+const API_BASE_URL = "/api";
 
 const lineItemSchemaInternal = z.object({
   description: z.string().min(1, "Description is required"),
