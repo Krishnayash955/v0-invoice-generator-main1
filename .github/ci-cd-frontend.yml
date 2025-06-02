@@ -1,4 +1,4 @@
-name: CI/CD for Medease Invoice Generator # Updated name to reflect CI and CD
+name: CI/CD for Invoice Generator with Express and MongoDB
 
 on:
   push:
@@ -7,26 +7,21 @@ on:
     branches: [main] # Triggers CI only
 
 jobs:
-  build-test-and-deploy: # Renamed job for clarity
+  build-test-and-deploy:
     runs-on: ubuntu-latest
-    # Optional: Define a GitHub Environment for more control (e.g., for production deployments)
-    # See GitHub docs for setting up Environments if you want this.
-    # environment:
-    #   name: production # Example environment name
-    #   url: ${{ steps.deploy-to-vercel.outputs.url }} # Will show the Vercel deployment URL in GitHub UI
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 18
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: 'npm' # Your project uses npm
+          cache: 'npm'
 
       - name: Install dependencies
-        run: npm install --legacy-peer-deps # Your install command
+        run: npm install --legacy-peer-deps
 
       - name: Run lint
         run: npm run lint
@@ -34,35 +29,50 @@ jobs:
       - name: Run tests
         run: npm test
 
-      - name: Build project
+      - name: Build Next.js project
         run: npm run build
-        # If you have build-time environment variables for Vercel,
-        # it's best to set them in the Vercel project UI.
-        # However, if they are needed for THIS build step and are GitHub secrets:
-        # env:
-        #   NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL_FOR_BUILD }}
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
 
-      - name: Deploy to Vercel Production
-        # This step only runs on a push to the 'main' branch,
-        # AND only if all previous steps in this job were successful.
+      # Deploy Express backend to a hosting service (e.g., Render, Heroku, etc.)
+      # This example uses Render, but you can adapt it for your preferred service
+      - name: Deploy Express Backend to Render
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        id: deploy-to-vercel # Give the step an ID to reference its outputs (like deployment URL)
-        uses: amondnet/vercel-action@v20 # A popular Vercel deployment action
-        # You can also explore the official vercel/vercel-action
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }} # REQUIRED GitHub Secret
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}   # REQUIRED GitHub Secret
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }} # REQUIRED GitHub Secret
-          # The 'vercel-args' flag tells Vercel CLI to create a production deployment.
-          # For pushes to 'main', this is usually what you want.
-          # Vercel often infers this from the branch name if your project is configured.
-          vercel-args: '--prod'
-          # Optional: If your Next.js app is not in the root of the repository:
-          # working-directory: ./path-to-your-app
+        run: |
+          echo "Deploying Express backend to Render..."
+          # You would typically use a Render-specific deployment action or API call here
+          # For example:
+          # curl -X POST "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys" \
+          #   -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+          #   -H "Content-Type: application/json"
+          
+          # For this example, we'll just echo a message
+          echo "Backend deployment would happen here in a real setup"
+          
+          # Wait for backend deployment to complete (important for frontend to work)
+          echo "Waiting for backend deployment to complete..."
+          sleep 10
 
-      # (Optional DevSecOps step) Example: Post-deployment smoke test
-      # - name: Smoke Test Deployed Application
-      #   if: success() && steps.deploy-to-vercel.outputs.url # Only if deployment was successful and we have a URL
-      #   run: |
-      #     echo "Attempting to smoke test URL: ${{ steps.deploy-to-vercel.outputs.url }}"
-      #     curl -sfL ${{ steps.deploy-to-vercel.outputs.url }} > /dev/null && echo "Smoke test passed!" || (echo "Smoke test FAILED" && exit 1)
+      # Deploy Next.js frontend to Vercel
+      - name: Deploy to Vercel Production
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        id: deploy-to-vercel
+        uses: amondnet/vercel-action@v20
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: '--prod'
+          # Add environment variables for the frontend to connect to the backend
+          build-env: |
+            NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
+
+      # Health check after deployment
+      - name: Health Check Deployed Applications
+        if: success() && steps.deploy-to-vercel.outputs.url
+        run: |
+          echo "Checking frontend at: ${{ steps.deploy-to-vercel.outputs.url }}"
+          curl -sfL ${{ steps.deploy-to-vercel.outputs.url }} > /dev/null && echo "Frontend check passed!" || (echo "Frontend check FAILED" && exit 1)
+          
+          echo "Checking backend health endpoint..."
+          curl -sfL "${{ secrets.NEXT_PUBLIC_API_URL }}/health" > /dev/null && echo "Backend check passed!" || (echo "Backend check FAILED" && exit 1)

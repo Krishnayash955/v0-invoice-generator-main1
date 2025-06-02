@@ -1,147 +1,122 @@
-"use server"
+"use client";
 
-import { PDFDocument, rgb, StandardFonts } from "pdf-lib"
-import mysql, { ResultSetHeader } from "mysql2/promise"
-import { revalidatePath } from "next/cache"
-import { initializeDatabase } from "../db/init-db"
-import { formatDate } from "../utils/format-utils"
-import type { InvoiceData } from "../types/invoice-types"
+import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
+import { formatDate } from "../utils/format-utils";
+import type { InvoiceData } from "../types/invoice-types";
+import axios from "axios";
+import { z } from "zod";
 
-// Configure the local MySQL connection
-const pool = mysql.createPool({
-  host: "localhost", // Replace with your database host
-  user: "root", // Replace with your MySQL username
-  password: "", // Replace with your MySQL password
-  database: "invoice_generator", // Replace with your database name
-  port: 3306, // Replace with your MySQL port if different
-})
+// API base URL - will be used for all API calls
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
-export async function saveInvoice(data: InvoiceData) {
-  const connection = await pool.getConnection()
+const lineItemSchemaInternal = z.object({
+  description: z.string().min(1, "Description is required"),
+  quantity: z.number().int().positive("Quantity must be positive"),
+  unitPrice: z.number().positive("Unit price must be positive"),
+});
+
+const invoiceFormSchema = z.object({
+  invoiceNumber: z.string().min(1, "Invoice number is required"),
+  // Keep dates as strings from form, validate they are valid date strings
+  invoiceDate: z.string().refine((val) => !isNaN(Date.parse(val)), { message: "Invalid invoice date" }),
+  dueDate: z.string().refine((val) => !isNaN(Date.parse(val)), { message: "Invalid due date" }),
+  companyName: z.string().min(1, "Company name is required"),
+  companyAddress: z.string().min(1, "Company address is required"),
+  companyEmail: z.string().email("Invalid company email"),
+  companyPhone: z.string().min(1, "Company phone is required"),
+  clientName: z.string().min(1, "Client name is required"),
+  clientAddress: z.string().min(1, "Client address is required"),
+  clientEmail: z.string().email("Invalid client email"),
+  notes: z.string().optional(),
+  totalAmount: z.number().positive("Total amount must be positive"),
+  lineItems: z.array(lineItemSchemaInternal).min(1, "At least one line item is required"),
+  status: z.string().optional().default('draft'),
+});
+
+export async function saveInvoice(inputData: unknown) {
+  console.log("Starting saveInvoice with MongoDB API, raw inputData:", inputData);
+
+  const validationResult = invoiceFormSchema.safeParse(inputData);
+  if (!validationResult.success) {
+    console.error("Invoice data validation failed:", validationResult.error.flatten().fieldErrors);
+    return {
+      success: false,
+      message: "Invalid invoice data.",
+      errors: validationResult.error.flatten().fieldErrors,
+    };
+  }
+  
+  const validatedData = validationResult.data;
+  console.log("Validated data:", validatedData);
+
   try {
-    console.log("Starting saveInvoice with data:", data)
-
-    // Initialize database tables if they don't exist
-    const dbInit = await initializeDatabase()
-    console.log("Database initialization result:", dbInit)
-    if (!dbInit.success) {
-      throw new Error(`Database initialization failed: ${dbInit.message}`)
+    // Send the validated data to the API
+    const response = await axios.post(`${API_BASE_URL}/invoices`, validatedData);
+    
+    console.log("Invoice saved successfully:", response.data);
+    
+    return { 
+      success: true, 
+      invoiceId: response.data._id,
+      message: "Invoice saved successfully" 
+    };
+  } catch (error: unknown) {
+    console.error("Error saving invoice:", error);
+    
+    // Handle axios error responses
+    if (axios.isAxiosError(error) && error.response) {
+      // The request was made and the server responded with a status code
+      // that falls out of the range of 2xx
+      console.error("API error response:", error.response.data);
+      
+      return { 
+        success: false, 
+        message: error.response.data.message || "Failed to save invoice",
+        errors: error.response.data.errors 
+      };
+    } else {
+      // Something happened in setting up the request that triggered an Error
+      let message = "Failed to save invoice.";
+      if (error instanceof Error && error.message) {
+        message = error.message;
+      } else if (typeof error === 'string') {
+        message = error;
+      }
+      return { success: false, message: message };
     }
-
-    // Start a transaction
-    await connection.beginTransaction()
-
-    // Insert the invoice
-    const [result] = await connection.query(
-      `
-      INSERT INTO invoices (
-        invoice_number, 
-        invoice_date, 
-        due_date, 
-        company_name, 
-        company_address, 
-        company_email, 
-        company_phone, 
-        client_name, 
-        client_address, 
-        client_email, 
-        notes, 
-        total_amount
-      ) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `,
-      [
-        data.invoiceNumber,
-        data.invoiceDate,
-        data.dueDate,
-        data.companyName,
-        data.companyAddress,
-        data.companyEmail,
-        data.companyPhone,
-        data.clientName,
-        data.clientAddress,
-        data.clientEmail,
-        data.notes || "",
-        data.totalAmount || 0,
-      ]
-    )
-    console.log("Invoice inserted, result:", result)
-
-    const invoiceId = (result as ResultSetHeader).insertId
-
-    // Insert line items
-    for (const item of data.lineItems) {
-      console.log("Inserting line item:", item)
-      await connection.query(
-        `
-        INSERT INTO line_items (
-          invoice_id, 
-          description, 
-          quantity, 
-          unit_price, 
-          amount
-        ) 
-        VALUES (?, ?, ?, ?, ?)
-        `,
-        [
-          invoiceId,
-          item.description,
-          item.quantity,
-          item.unitPrice,
-          item.quantity * item.unitPrice,
-        ]
-      )
-    }
-
-    // Commit the transaction
-    await connection.commit()
-    console.log("Transaction committed successfully")
-
-    revalidatePath("/")
-    return { success: true, invoiceId }
-  } catch (error) {
-    // Rollback the transaction in case of an error
-    await connection.rollback()
-    console.error("Error saving invoice:", error)
-    throw new Error(`Failed to save invoice: ${error instanceof Error ? error.message : String(error)}`)
-  } finally {
-    connection.release()
   }
 }
+
+// Assuming InvoiceData type is defined such that totalAmount is number (not optional for PDF)
 export async function generateInvoice(data: InvoiceData): Promise<Blob> {
-  // Create a new PDF document
-  const pdfDoc = await PDFDocument.create()
-  const page = pdfDoc.addPage([595.28, 841.89]) // A4 size
-  const { width, height } = page.getSize()
+  const pdfDoc = await PDFDocument.create();
+  const page = pdfDoc.addPage([595.28, 841.89]);
+  const { width, height } = page.getSize();
 
-  // Load fonts
-  const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica)
-  const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
+  const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-  // Set font sizes
-  const titleFontSize = 24
-  const headerFontSize = 12
-  const normalFontSize = 10
+  const titleFontSize = 24;
+  const headerFontSize = 12;
+  const normalFontSize = 10;
 
-  // Draw company information
   page.drawText("INVOICE", {
     x: 50,
     y: height - 50,
     size: titleFontSize,
     font: helveticaBold,
     color: rgb(0.2, 0.2, 0.2),
-  })
+  });
 
-  // Company details
   page.drawText(data.companyName, {
     x: 50,
     y: height - 90,
     size: headerFontSize,
     font: helveticaBold,
     color: rgb(0, 0, 0),
-  })
+  });
 
-  const companyAddressLines = data.companyAddress.split("\n")
+  const companyAddressLines = data.companyAddress.split("\n");
   companyAddressLines.forEach((line, index) => {
     page.drawText(line, {
       x: 50,
@@ -149,8 +124,8 @@ export async function generateInvoice(data: InvoiceData): Promise<Blob> {
       size: normalFontSize,
       font: helveticaFont,
       color: rgb(0, 0, 0),
-    })
-  })
+    });
+  });
 
   page.drawText(`Email: ${data.companyEmail}`, {
     x: 50,
@@ -158,7 +133,7 @@ export async function generateInvoice(data: InvoiceData): Promise<Blob> {
     size: normalFontSize,
     font: helveticaFont,
     color: rgb(0, 0, 0),
-  })
+  });
 
   page.drawText(`Phone: ${data.companyPhone}`, {
     x: 50,
@@ -166,24 +141,24 @@ export async function generateInvoice(data: InvoiceData): Promise<Blob> {
     size: normalFontSize,
     font: helveticaFont,
     color: rgb(0, 0, 0),
-  })
+  });
 
-  // Invoice details
   page.drawText(`Invoice #: ${data.invoiceNumber}`, {
     x: width - 200,
     y: height - 90,
     size: normalFontSize,
     font: helveticaFont,
     color: rgb(0, 0, 0),
-  })
+  });
 
+  // Use formatDateForDisplay (or your original formatDate if it handles Date objects or valid date strings)
   page.drawText(`Date: ${formatDate(data.invoiceDate)}`, {
     x: width - 200,
     y: height - 105,
     size: normalFontSize,
     font: helveticaFont,
     color: rgb(0, 0, 0),
-  })
+  });
 
   page.drawText(`Due Date: ${formatDate(data.dueDate)}`, {
     x: width - 200,
@@ -191,24 +166,22 @@ export async function generateInvoice(data: InvoiceData): Promise<Blob> {
     size: normalFontSize,
     font: helveticaFont,
     color: rgb(0, 0, 0),
-  })
+  });
 
-  // Draw a decorative line
   page.drawLine({
     start: { x: 50, y: height - 150 },
     end: { x: width - 50, y: height - 150 },
     thickness: 2,
     color: rgb(0.8, 0.8, 0.8),
-  })
+  });
 
-  // Bill To
   page.drawText("BILL TO:", {
     x: 50,
     y: height - 180,
     size: headerFontSize,
     font: helveticaBold,
     color: rgb(0.4, 0.4, 0.4),
-  })
+  });
 
   page.drawText(data.clientName, {
     x: 50,
@@ -216,9 +189,9 @@ export async function generateInvoice(data: InvoiceData): Promise<Blob> {
     size: normalFontSize,
     font: helveticaBold,
     color: rgb(0, 0, 0),
-  })
+  });
 
-  const clientAddressLines = data.clientAddress.split("\n")
+  const clientAddressLines = data.clientAddress.split("\n");
   clientAddressLines.forEach((line, index) => {
     page.drawText(line, {
       x: 50,
@@ -226,8 +199,8 @@ export async function generateInvoice(data: InvoiceData): Promise<Blob> {
       size: normalFontSize,
       font: helveticaFont,
       color: rgb(0, 0, 0),
-    })
-  })
+    });
+  });
 
   page.drawText(`Email: ${data.clientEmail}`, {
     x: 50,
@@ -235,15 +208,13 @@ export async function generateInvoice(data: InvoiceData): Promise<Blob> {
     size: normalFontSize,
     font: helveticaFont,
     color: rgb(0, 0, 0),
-  })
+  });
 
-  // Line items header
-  const tableTop = height - 280
-  const tableLeft = 50
-  const tableRight = width - 50
-  const columnWidths = [300, 80, 80, 80]
+  const tableTop = height - 280;
+  const tableLeft = 50;
+  const tableRight = width - 50;
+  const columnWidths = [280, 70, 80, 90]; // Adjusted for potentially wider content
 
-  // Draw table header with a background
   page.drawRectangle({
     x: tableLeft,
     y: tableTop - 25,
@@ -252,7 +223,7 @@ export async function generateInvoice(data: InvoiceData): Promise<Blob> {
     color: rgb(0.9, 0.9, 0.9),
     borderColor: rgb(0.8, 0.8, 0.8),
     borderWidth: 1,
-  })
+  });
 
   page.drawText("Description", {
     x: tableLeft + 10,
@@ -260,51 +231,44 @@ export async function generateInvoice(data: InvoiceData): Promise<Blob> {
     size: headerFontSize,
     font: helveticaBold,
     color: rgb(0.2, 0.2, 0.2),
-  })
-
+  });
   page.drawText("Quantity", {
-    x: tableLeft + columnWidths[0],
+    x: tableLeft + columnWidths[0] + 10,
     y: tableTop - 15,
     size: headerFontSize,
     font: helveticaBold,
     color: rgb(0.2, 0.2, 0.2),
-  })
-
+  });
   page.drawText("Unit Price", {
-    x: tableLeft + columnWidths[0] + columnWidths[1],
+    x: tableLeft + columnWidths[0] + columnWidths[1] + 10,
     y: tableTop - 15,
     size: headerFontSize,
     font: helveticaBold,
     color: rgb(0.2, 0.2, 0.2),
-  })
-
+  });
   page.drawText("Amount", {
-    x: tableLeft + columnWidths[0] + columnWidths[1] + columnWidths[2],
+    x: tableLeft + columnWidths[0] + columnWidths[1] + columnWidths[2] + 10,
     y: tableTop - 15,
     size: headerFontSize,
     font: helveticaBold,
     color: rgb(0.2, 0.2, 0.2),
-  })
+  });
 
-  // Draw line items
-  let yPosition = tableTop - 40
-  let total = 0
+  let yPosition = tableTop - 45; // Start items lower
+  // let currentTotal = 0; // Calculate from line items for PDF accuracy
 
   data.lineItems.forEach((item, index) => {
-    const amount = item.quantity * item.unitPrice
-    total += amount
+    const amount = item.quantity * item.unitPrice;
+    // currentTotal += amount;
 
-    // Alternate row background for better readability
     if (index % 2 === 0) {
       page.drawRectangle({
         x: tableLeft,
-        y: yPosition - 15,
+        y: yPosition - 15 + 5, // Adjust y
         width: tableRight - tableLeft,
         height: 25,
         color: rgb(0.97, 0.97, 0.97),
-        borderColor: rgb(0.9, 0.9, 0.9),
-        borderWidth: 0,
-      })
+      });
     }
 
     page.drawText(item.description, {
@@ -313,108 +277,90 @@ export async function generateInvoice(data: InvoiceData): Promise<Blob> {
       size: normalFontSize,
       font: helveticaFont,
       color: rgb(0, 0, 0),
-    })
-
+    });
     page.drawText(item.quantity.toString(), {
-      x: tableLeft + columnWidths[0],
+      x: tableLeft + columnWidths[0] + 10,
       y: yPosition,
       size: normalFontSize,
       font: helveticaFont,
       color: rgb(0, 0, 0),
-    })
-
+    });
     page.drawText(`$${item.unitPrice.toFixed(2)}`, {
-      x: tableLeft + columnWidths[0] + columnWidths[1],
+      x: tableLeft + columnWidths[0] + columnWidths[1] + 10,
       y: yPosition,
       size: normalFontSize,
       font: helveticaFont,
       color: rgb(0, 0, 0),
-    })
-
+    });
     page.drawText(`$${amount.toFixed(2)}`, {
-      x: tableLeft + columnWidths[0] + columnWidths[1] + columnWidths[2],
+      x: tableLeft + columnWidths[0] + columnWidths[1] + columnWidths[2] + 10,
       y: yPosition,
       size: normalFontSize,
       font: helveticaFont,
       color: rgb(0, 0, 0),
-    })
+    });
+    yPosition -= 25;
+  });
 
-    yPosition -= 25
-  })
+  yPosition -= 5; // Space before total line
 
-  // Draw total section with background
   page.drawRectangle({
-    x: tableLeft + columnWidths[0],
-    y: yPosition - 15,
-    width: tableRight - tableLeft - columnWidths[0],
+    x: tableLeft + columnWidths[0] + columnWidths[1],
+    y: yPosition - 15 + 2, // Adjust y
+    width: tableRight - (tableLeft + columnWidths[0] + columnWidths[1]),
     height: 30,
     color: rgb(0.95, 0.95, 0.95),
-    borderColor: rgb(0.9, 0.9, 0.9),
-    borderWidth: 1,
-  })
+  });
 
-  // Draw total
   page.drawText("Total:", {
-    x: tableLeft + columnWidths[0] + 10,
+    x: tableLeft + columnWidths[0] + columnWidths[1] + 10,
     y: yPosition,
     size: headerFontSize,
     font: helveticaBold,
     color: rgb(0, 0, 0),
-  })
-
-  page.drawText(`$${total.toFixed(2)}`, {
-    x: tableLeft + columnWidths[0] + columnWidths[1] + columnWidths[2],
+  });
+  // Use data.totalAmount for the PDF as it's likely pre-calculated and validated
+  page.drawText(`$${(data.totalAmount ?? 0).toFixed(2)}`, {
+    x: tableLeft + columnWidths[0] + columnWidths[1] + columnWidths[2] + 10,
     y: yPosition,
     size: headerFontSize,
     font: helveticaBold,
     color: rgb(0.2, 0.2, 0.2),
-  })
+  });
+  yPosition -= 30; // Space after total
 
-  // Notes
-  if (data.notes) {
+  if (data.notes && data.notes.trim() !== "") {
+    yPosition -= 20;
     page.drawText("NOTES:", {
       x: tableLeft,
-      y: yPosition - 50,
+      y: yPosition,
       size: headerFontSize,
       font: helveticaBold,
       color: rgb(0.4, 0.4, 0.4),
-    })
+    });
+    yPosition -= 20;
 
-    // Draw a background for notes
-    page.drawRectangle({
-      x: tableLeft,
-      y: yPosition - 70 - data.notes.split("\n").length * 15,
-      width: tableRight - tableLeft,
-      height: data.notes.split("\n").length * 15 + 20,
-      color: rgb(0.97, 0.97, 0.97),
-      borderColor: rgb(0.95, 0.95, 0.95),
-      borderWidth: 1,
-    })
-
-    const notesLines = data.notes.split("\n")
-    notesLines.forEach((line, index) => {
+    const notesLines = data.notes.split("\n");
+    notesLines.forEach((line) => {
       page.drawText(line, {
         x: tableLeft + 10,
-        y: yPosition - 70 - index * 15,
+        y: yPosition,
         size: normalFontSize,
         font: helveticaFont,
         color: rgb(0, 0, 0),
-      })
-    })
+      });
+      yPosition -= 15;
+    });
   }
 
-  // Add a footer
   page.drawText("Thank you for your business!", {
     x: width / 2 - 80,
     y: 50,
     size: normalFontSize,
     font: helveticaFont,
     color: rgb(0.4, 0.4, 0.4),
-  })
+  });
 
-  // Serialize the PDFDocument to bytes
-  const pdfBytes = await pdfDoc.save()
-
-  // Convert to Blob
-  return new Blob([pdfBytes], { type: "application/pdf" })
+  const pdfBytes = await pdfDoc.save();
+  return new Blob([pdfBytes], { type: "application/pdf" });
 }
