@@ -74,7 +74,6 @@ jobs:
           vercel-args: '--prod'
           github-comment: true
           github-deployment: false
-
       # Health check after deployment
       - name: Health Check Deployed Applications
         if: success() && steps.deploy-to-vercel.outputs.url
