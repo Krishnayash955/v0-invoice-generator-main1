@@ -1,0 +1,78 @@
+name: CI/CD for Invoice Generator with Express and MongoDB
+
+on:
+  push:
+    branches: [main] # Triggers CI and, if successful, CD
+  pull_request:
+    branches: [main] # Triggers CI only
+
+jobs:
+  build-test-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Run lint
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build Next.js project
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+
+      # Deploy Express backend to a hosting service (e.g., Render, Heroku, etc.)
+      # This example uses Render, but you can adapt it for your preferred service
+      - name: Deploy Express Backend to Render
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          echo "Deploying Express backend to Render..."
+          # You would typically use a Render-specific deployment action or API call here
+          # For example:
+          # curl -X POST "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys" \
+          #   -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+          #   -H "Content-Type: application/json"
+          
+          # For this example, we'll just echo a message
+          echo "Backend deployment would happen here in a real setup"
+          
+          # Wait for backend deployment to complete (important for frontend to work)
+          echo "Waiting for backend deployment to complete..."
+          sleep 10
+
+      # Deploy Next.js frontend to Vercel
+      - name: Deploy to Vercel Production
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        id: deploy-to-vercel
+        uses: amondnet/vercel-action@v20
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: '--prod'
+          # Add environment variables for the frontend to connect to the backend
+          build-env: |
+            NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
+
+      # Health check after deployment
+      - name: Health Check Deployed Applications
+        if: success() && steps.deploy-to-vercel.outputs.url
+        run: |
+          echo "Checking frontend at: ${{ steps.deploy-to-vercel.outputs.url }}"
+          curl -sfL ${{ steps.deploy-to-vercel.outputs.url }} > /dev/null && echo "Frontend check passed!" || (echo "Frontend check FAILED" && exit 1)
+          
+          echo "Checking backend health endpoint..."
+          curl -sfL "${{ secrets.NEXT_PUBLIC_API_URL }}/health" > /dev/null && echo "Backend check passed!" || (echo "Backend check FAILED" && exit 1)
