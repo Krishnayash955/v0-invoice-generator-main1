@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
-import { z } from 'zod';
 
 // MongoDB connection
 let isConnected = false;
@@ -11,16 +10,14 @@ const connectToDatabase = async () => {
   }
 
   try {
-    // Use a default MongoDB URI if not provided in environment variables
-    const uri = process.env.MONGODB_URI || 'mongodb+srv://krishnayash955:krishnayash955@cluster0.mongodb.net/invoice-generator?retryWrites=true&w=majority';
-    
-    console.log('Connecting to MongoDB with URI:', uri.substring(0, 20) + '...');
-    
     // Connect to MongoDB with auto-create options
-    await mongoose.connect(uri);
+    await mongoose.connect(process.env.MONGODB_URI || '', {
+      autoCreate: true, // Automatically create the database if it doesn't exist
+      autoIndex: true   // Build indexes
+    });
     
     isConnected = true;
-    console.log('Connected to MongoDB successfully');
+    console.log('Connected to MongoDB');
     
     // Ensure the Invoice model is initialized which will create the collection if it doesn't exist
     if (mongoose.models.Invoice) {
@@ -126,30 +123,6 @@ const invoiceSchema = new mongoose.Schema({
 // Create the model
 const Invoice = mongoose.models.Invoice || mongoose.model('Invoice', invoiceSchema);
 
-// Validation schema for input data
-const lineItemSchemaZod = z.object({
-  description: z.string().min(1, "Description is required"),
-  quantity: z.number().int().positive("Quantity must be positive"),
-  unitPrice: z.number().positive("Unit price must be positive"),
-});
-
-const invoiceFormSchema = z.object({
-  invoiceNumber: z.string().min(1, "Invoice number is required"),
-  invoiceDate: z.string().refine((val) => !isNaN(Date.parse(val)), { message: "Invalid invoice date" }),
-  dueDate: z.string().refine((val) => !isNaN(Date.parse(val)), { message: "Invalid due date" }),
-  companyName: z.string().min(1, "Company name is required"),
-  companyAddress: z.string().min(1, "Company address is required"),
-  companyEmail: z.string().email("Invalid company email"),
-  companyPhone: z.string().min(1, "Company phone is required"),
-  clientName: z.string().min(1, "Client name is required"),
-  clientAddress: z.string().min(1, "Client address is required"),
-  clientEmail: z.string().email("Invalid client email"),
-  notes: z.string().optional(),
-  totalAmount: z.number().positive("Total amount must be positive"),
-  lineItems: z.array(lineItemSchemaZod).min(1, "At least one line item is required"),
-  status: z.string().optional().default('draft'),
-});
-
 // GET handler to fetch a single invoice by ID
 export async function GET(
   request: NextRequest,
@@ -206,23 +179,9 @@ export async function PUT(
       );
     }
     
-    // Validate the input data
-    const validationResult = invoiceFormSchema.safeParse(data);
-    if (!validationResult.success) {
-      return NextResponse.json(
-        { 
-          message: 'Validation error', 
-          errors: validationResult.error.flatten().fieldErrors 
-        },
-        { status: 400 }
-      );
-    }
-    
-    const validatedData = validationResult.data;
-    
     const updatedInvoice = await Invoice.findByIdAndUpdate(
       id,
-      validatedData,
+      data,
       { new: true, runValidators: true }
     );
     

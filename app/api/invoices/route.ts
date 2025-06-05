@@ -11,16 +11,14 @@ const connectToDatabase = async () => {
   }
 
   try {
-    // Use a default MongoDB URI if not provided in environment variables
-    const uri = process.env.MONGODB_URI || 'mongodb+srv://krishnayash955:krishnayash955@cluster0.mongodb.net/invoice-generator?retryWrites=true&w=majority';
-    
-    console.log('Connecting to MongoDB with URI:', uri.substring(0, 20) + '...');
-    
     // Connect to MongoDB with auto-create options
-    await mongoose.connect(uri);
+    await mongoose.connect(process.env.MONGODB_URI || '', {
+      autoCreate: true, // Automatically create the database if it doesn't exist
+      autoIndex: true   // Build indexes
+    });
     
     isConnected = true;
-    console.log('Connected to MongoDB successfully');
+    console.log('Connected to MongoDB');
     
     // Ensure the Invoice model is initialized which will create the collection if it doesn't exist
     if (mongoose.models.Invoice) {

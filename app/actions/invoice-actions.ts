@@ -50,7 +50,6 @@ export async function saveInvoice(inputData: unknown) {
 
   try {
     // Send the validated data to the API
-    console.log("Sending data to API:", `${API_BASE_URL}/invoices`);
     const response = await axios.post(`${API_BASE_URL}/invoices`, validatedData);
     
     console.log("Invoice saved successfully:", response.data);
@@ -68,18 +67,6 @@ export async function saveInvoice(inputData: unknown) {
       // The request was made and the server responded with a status code
       // that falls out of the range of 2xx
       console.error("API error response:", error.response.data);
-      console.error("API error status:", error.response.status);
-      
-      // If it's a MongoDB connection error, provide a more helpful message
-      if (error.response.status === 500 && 
-          error.response.data.error && 
-          error.response.data.error.includes("MongoDB")) {
-        return {
-          success: false,
-          message: "Could not connect to the database. Please check your MongoDB connection.",
-          errors: { database: ["Connection failed"] }
-        };
-      }
       
       return { 
         success: false, 

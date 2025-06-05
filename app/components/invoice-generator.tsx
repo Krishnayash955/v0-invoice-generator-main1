@@ -2,14 +2,12 @@
 
 import { useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
-import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { generateInvoice, saveInvoice } from "../actions/invoice-actions"
-import Link from "next/link"
 import {
   Loader2,
   Plus,
@@ -53,7 +51,6 @@ export default function InvoiceGenerator() {
   const [activeSection, setActiveSection] = useState<string>("company")
   const [previewMode, setPreviewMode] = useState<boolean>(false)
   const isMobile = useMobile()
-  const router = useRouter()
 
   const {
     register,
@@ -162,22 +159,13 @@ export default function InvoiceGenerator() {
         totalAmount: calculateTotal(),
       }
 
-      const result = await saveInvoice(invoiceData)
+      await saveInvoice(invoiceData)
 
-      if (result && result.success) {
-        toast({
-          title: "Invoice Saved",
-          description: "Your invoice has been successfully saved to the database.",
-          duration: 3000,
-        })
-        
-        // Redirect to the invoices page after a short delay
-        setTimeout(() => {
-          router.push('/invoices');
-        }, 1000);
-      } else {
-        throw new Error(result?.message || "Failed to save invoice");
-      }
+      toast({
+        title: "Invoice Saved",
+        description: "Your invoice has been successfully saved to the database.",
+        duration: 5000,
+      })
     } catch (error) {
       console.error("Error saving invoice:", error)
       toast({
@@ -236,21 +224,13 @@ export default function InvoiceGenerator() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
           >
-            <p className="text-gray-400 text-center max-w-2xl text-lg mb-4">
+            <p className="text-gray-400 text-center max-w-2xl text-lg">
               Create professional invoices in seconds and deliver them to your clients with ease.
             </p>
-            <div className="flex justify-center">
-              <Button asChild className="bg-blue-600 hover:bg-blue-700">
-                <Link href="/invoices">
-                  <ListChecks className="mr-2 h-5 w-5" />
-                  View All Invoices
-                </Link>
-              </Button>
-            </div>
           </motion.div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Navigation Sidebar */}
           <div className={cn("lg:col-span-3 order-2 lg:order-1", previewMode && !isMobile ? "hidden" : "")}>
             <div className="lg:sticky lg:top-8">
@@ -445,26 +425,6 @@ export default function InvoiceGenerator() {
                           </p>
                         )}
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="companyPhone" className="text-gray-300">
-                          Phone <span className="text-red-500">*</span>
-                        </Label>
-                        <Input
-                          id="companyPhone"
-                          type="tel"
-                          {...register("companyPhone", { required: true })}
-                          className={cn(
-                            "bg-gray-800 border-gray-700 text-white transition-all duration-200 focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:border-transparent",
-                            errors.companyPhone ? "border-red-500" : "",
-                          )}
-                          aria-invalid={errors.companyPhone ? "true" : "false"}
-                        />
-                        {errors.companyPhone && (
-                          <p className="text-red-500 text-sm" role="alert">
-                            Phone number is required
-                          </p>
-                        )}
-                      </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
@@ -486,7 +446,25 @@ export default function InvoiceGenerator() {
                           </p>
                         )}
                       </div>
-
+                      <div className="space-y-2">
+                        <Label htmlFor="companyPhone" className="text-gray-300">
+                          Phone <span className="text-red-500">*</span>
+                        </Label>
+                        <Input
+                          id="companyPhone"
+                          {...register("companyPhone", { required: true })}
+                          className={cn(
+                            "bg-gray-800 border-gray-700 text-white transition-all duration-200 focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:border-transparent",
+                            errors.companyPhone ? "border-red-500" : "",
+                          )}
+                          aria-invalid={errors.companyPhone ? "true" : "false"}
+                        />
+                        {errors.companyPhone && (
+                          <p className="text-red-500 text-sm" role="alert">
+                            Phone is required
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
