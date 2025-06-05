@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { generateInvoice, saveInvoice } from "../actions/invoice-actions"
+import Link from "next/link"
 import {
   Loader2,
   Plus,
@@ -224,13 +225,21 @@ export default function InvoiceGenerator() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
           >
-            <p className="text-gray-400 text-center max-w-2xl text-lg">
+            <p className="text-gray-400 text-center max-w-2xl text-lg mb-4">
               Create professional invoices in seconds and deliver them to your clients with ease.
             </p>
+            <div className="flex justify-center">
+              <Button asChild className="bg-blue-600 hover:bg-blue-700">
+                <Link href="/invoices">
+                  <ListChecks className="mr-2 h-5 w-5" />
+                  View All Invoices
+                </Link>
+              </Button>
+            </div>
           </motion.div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-8">
           {/* Navigation Sidebar */}
           <div className={cn("lg:col-span-3 order-2 lg:order-1", previewMode && !isMobile ? "hidden" : "")}>
             <div className="lg:sticky lg:top-8">
