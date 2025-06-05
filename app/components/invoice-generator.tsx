@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { generateInvoice, saveInvoice } from "../actions/invoice-actions"
+import Link from "next/link"
 import {
   Loader2,
   Plus,
@@ -159,13 +160,21 @@ export default function InvoiceGenerator() {
         totalAmount: calculateTotal(),
       }
 
-      await saveInvoice(invoiceData)
+      const result = await saveInvoice(invoiceData)
 
       toast({
         title: "Invoice Saved",
         description: "Your invoice has been successfully saved to the database.",
         duration: 5000,
       })
+      
+      // Redirect to invoices page after successful save
+      if (result.success) {
+        // Use a small delay to allow the toast to be visible
+        setTimeout(() => {
+          window.location.href = '/invoices';
+        }, 1000);
+      }
     } catch (error) {
       console.error("Error saving invoice:", error)
       toast({
@@ -223,10 +232,16 @@ export default function InvoiceGenerator() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
+            className="flex flex-col items-center"
           >
-            <p className="text-gray-400 text-center max-w-2xl text-lg">
+            <p className="text-gray-400 text-center max-w-2xl text-lg mb-4">
               Create professional invoices in seconds and deliver them to your clients with ease.
             </p>
+            <Button asChild variant="outline" className="border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white">
+              <Link href="/invoices">
+                View Created Invoices
+              </Link>
+            </Button>
           </motion.div>
         </div>
 
