@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -52,6 +53,7 @@ export default function InvoiceGenerator() {
   const [activeSection, setActiveSection] = useState<string>("company")
   const [previewMode, setPreviewMode] = useState<boolean>(false)
   const isMobile = useMobile()
+  const router = useRouter()
 
   const {
     register,
@@ -160,13 +162,22 @@ export default function InvoiceGenerator() {
         totalAmount: calculateTotal(),
       }
 
-      await saveInvoice(invoiceData)
+      const result = await saveInvoice(invoiceData)
 
-      toast({
-        title: "Invoice Saved",
-        description: "Your invoice has been successfully saved to the database.",
-        duration: 5000,
-      })
+      if (result && result.success) {
+        toast({
+          title: "Invoice Saved",
+          description: "Your invoice has been successfully saved to the database.",
+          duration: 3000,
+        })
+        
+        // Redirect to the invoices page after a short delay
+        setTimeout(() => {
+          router.push('/invoices');
+        }, 1000);
+      } else {
+        throw new Error(result?.message || "Failed to save invoice");
+      }
     } catch (error) {
       console.error("Error saving invoice:", error)
       toast({
@@ -431,6 +442,26 @@ export default function InvoiceGenerator() {
                         {errors.companyEmail && (
                           <p className="text-red-500 text-sm" role="alert">
                             Email is required
+                          </p>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="companyPhone" className="text-gray-300">
+                          Phone <span className="text-red-500">*</span>
+                        </Label>
+                        <Input
+                          id="companyPhone"
+                          type="tel"
+                          {...register("companyPhone", { required: true })}
+                          className={cn(
+                            "bg-gray-800 border-gray-700 text-white transition-all duration-200 focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:border-transparent",
+                            errors.companyPhone ? "border-red-500" : "",
+                          )}
+                          aria-invalid={errors.companyPhone ? "true" : "false"}
+                        />
+                        {errors.companyPhone && (
+                          <p className="text-red-500 text-sm" role="alert">
+                            Phone number is required
                           </p>
                         )}
                       </div>
