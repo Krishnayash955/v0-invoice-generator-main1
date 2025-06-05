@@ -86,6 +86,128 @@ export async function saveInvoice(inputData: unknown) {
   }
 }
 
+export async function updateInvoice(id: string, inputData: unknown) {
+  console.log(`Starting updateInvoice for ID: ${id}, raw inputData:`, inputData);
+
+  const validationResult = invoiceFormSchema.safeParse(inputData);
+  if (!validationResult.success) {
+    console.error("Invoice data validation failed:", validationResult.error.flatten().fieldErrors);
+    return {
+      success: false,
+      message: "Invalid invoice data.",
+      errors: validationResult.error.flatten().fieldErrors,
+    };
+  }
+  
+  const validatedData = validationResult.data;
+  console.log("Validated data:", validatedData);
+
+  try {
+    // Send the validated data to the API
+    const response = await axios.put(`${API_BASE_URL}/invoices/${id}`, validatedData);
+    
+    console.log("Invoice updated successfully:", response.data);
+    
+    return { 
+      success: true, 
+      invoiceId: response.data._id,
+      message: "Invoice updated successfully" 
+    };
+  } catch (error: unknown) {
+    console.error("Error updating invoice:", error);
+    
+    // Handle axios error responses
+    if (axios.isAxiosError(error) && error.response) {
+      console.error("API error response:", error.response.data);
+      
+      return { 
+        success: false, 
+        message: error.response.data.message || "Failed to update invoice",
+        errors: error.response.data.errors 
+      };
+    } else {
+      let message = "Failed to update invoice.";
+      if (error instanceof Error && error.message) {
+        message = error.message;
+      } else if (typeof error === 'string') {
+        message = error;
+      }
+      return { success: false, message: message };
+    }
+  }
+}
+
+export async function deleteInvoice(id: string) {
+  console.log(`Starting deleteInvoice for ID: ${id}`);
+
+  try {
+    // Send the delete request to the API
+    const response = await axios.delete(`${API_BASE_URL}/invoices/${id}`);
+    
+    console.log("Invoice deleted successfully:", response.data);
+    
+    return { 
+      success: true, 
+      message: "Invoice deleted successfully" 
+    };
+  } catch (error: unknown) {
+    console.error("Error deleting invoice:", error);
+    
+    // Handle axios error responses
+    if (axios.isAxiosError(error) && error.response) {
+      console.error("API error response:", error.response.data);
+      
+      return { 
+        success: false, 
+        message: error.response.data.message || "Failed to delete invoice"
+      };
+    } else {
+      let message = "Failed to delete invoice.";
+      if (error instanceof Error && error.message) {
+        message = error.message;
+      } else if (typeof error === 'string') {
+        message = error;
+      }
+      return { success: false, message: message };
+    }
+  }
+}
+
+export async function fetchInvoices() {
+  console.log("Starting fetchInvoices");
+
+  try {
+    const response = await axios.get(`${API_BASE_URL}/invoices`);
+    console.log("Invoices fetched successfully:", response.data);
+    
+    return { 
+      success: true, 
+      invoices: response.data,
+      message: "Invoices fetched successfully" 
+    };
+  } catch (error: unknown) {
+    console.error("Error fetching invoices:", error);
+    
+    if (axios.isAxiosError(error) && error.response) {
+      console.error("API error response:", error.response.data);
+      
+      return { 
+        success: false, 
+        message: error.response.data.message || "Failed to fetch invoices",
+        invoices: []
+      };
+    } else {
+      let message = "Failed to fetch invoices.";
+      if (error instanceof Error && error.message) {
+        message = error.message;
+      } else if (typeof error === 'string') {
+        message = error;
+      }
+      return { success: false, message: message, invoices: [] };
+    }
+  }
+}
+
 // Assuming InvoiceData type is defined such that totalAmount is number (not optional for PDF)
 export async function generateInvoice(data: InvoiceData): Promise<Blob> {
   // Calculate total amount if not provided
