@@ -486,25 +486,7 @@ export default function InvoiceGenerator() {
                           </p>
                         )}
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="companyPhone" className="text-gray-300">
-                          Phone <span className="text-red-500">*</span>
-                        </Label>
-                        <Input
-                          id="companyPhone"
-                          {...register("companyPhone", { required: true })}
-                          className={cn(
-                            "bg-gray-800 border-gray-700 text-white transition-all duration-200 focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:border-transparent",
-                            errors.companyPhone ? "border-red-500" : "",
-                          )}
-                          aria-invalid={errors.companyPhone ? "true" : "false"}
-                        />
-                        {errors.companyPhone && (
-                          <p className="text-red-500 text-sm" role="alert">
-                            Phone is required
-                          </p>
-                        )}
-                      </div>
+
                     </div>
                   </CardContent>
                 </Card>
